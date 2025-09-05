@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"github.com/vinamra28/operator-reviewer/internal/models"
 	"github.com/vinamra28/operator-reviewer/internal/services"
 )
@@ -21,6 +22,7 @@ type WebhookHandler struct {
 }
 
 func NewWebhookHandler(gitlabService *services.GitLabService, reviewService *services.ReviewService, webhookSecret string) *WebhookHandler {
+	logrus.Info("Creating webhook handler")
 	return &WebhookHandler{
 		gitlabService: gitlabService,
 		reviewService: reviewService,
@@ -29,36 +31,54 @@ func NewWebhookHandler(gitlabService *services.GitLabService, reviewService *ser
 }
 
 func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
+	logrus.Info("Received webhook request")
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		logrus.WithError(err).Error("Failed to read request body")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
 
 	if h.webhookSecret != "" {
+		logrus.Debug("Verifying webhook signature")
 		if !h.verifySignature(body, c.GetHeader("X-Gitlab-Token")) {
+			logrus.Warn("Invalid webhook signature received")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid signature"})
 			return
 		}
+		logrus.Debug("Webhook signature verified successfully")
 	}
 
 	eventType := c.GetHeader("X-Gitlab-Event")
+	logrus.WithField("event_type", eventType).Debug("Received GitLab event")
 	if eventType != "Merge Request Hook" {
+		logrus.WithField("event_type", eventType).Info("Ignoring non-merge request event")
 		c.JSON(http.StatusOK, gin.H{"message": "Event ignored"})
 		return
 	}
 
 	var webhook models.GitLabWebhook
 	if err := json.Unmarshal(body, &webhook); err != nil {
+		logrus.WithError(err).Error("Failed to parse webhook payload")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse webhook"})
 		return
 	}
+	logrus.WithFields(logrus.Fields{
+		"project_id": webhook.Project.ID,
+		"mr_iid": webhook.ObjectAttributes.IID,
+		"action": webhook.ObjectAttributes.Action,
+	}).Info("Parsed webhook payload")
 
 	if webhook.ObjectAttributes.Action != "open" && webhook.ObjectAttributes.Action != "reopen" && webhook.ObjectAttributes.Action != "update" {
+		logrus.WithField("action", webhook.ObjectAttributes.Action).Info("Ignoring merge request action")
 		c.JSON(http.StatusOK, gin.H{"message": "Action ignored"})
 		return
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"project_id": webhook.Project.ID,
+		"mr_iid": webhook.ObjectAttributes.IID,
+	}).Info("Starting merge request processing")
 	go h.processMergeRequest(&webhook)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Webhook received"})
@@ -80,37 +100,104 @@ func (h *WebhookHandler) processMergeRequest(webhook *models.GitLabWebhook) {
 	projectID := webhook.Project.ID
 	mrIID := webhook.ObjectAttributes.IID
 
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"mr_iid": mrIID,
+	}).Info("Processing merge request")
+
 	changes, err := h.gitlabService.GetMRChanges(projectID, mrIID)
 	if err != nil {
-		fmt.Printf("Error fetching MR changes: %v\n", err)
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid": mrIID,
+		}).Error("Failed to fetch MR changes")
 		return
 	}
 
 	if len(changes) == 0 {
-		fmt.Println("No changes found in MR")
+		logrus.WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid": mrIID,
+		}).Warn("No changes found in merge request")
 		return
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"mr_iid": mrIID,
+		"changes_count": len(changes),
+	}).Info("Retrieved merge request changes")
+
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"mr_iid": mrIID,
+	}).Info("Starting code review")
 
 	review, err := h.reviewService.ReviewCode(changes, webhook.ObjectAttributes.Title, webhook.ObjectAttributes.Description)
 	if err != nil {
-		fmt.Printf("Error reviewing code: %v\n", err)
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid": mrIID,
+		}).Error("Failed to review code")
 		return
 	}
 
-	for _, comment := range review.Comments {
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"mr_iid": mrIID,
+		"comments_count": len(review.Comments),
+	}).Info("Code review completed")
+
+	for i, comment := range review.Comments {
+		logrus.WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid": mrIID,
+			"comment_index": i + 1,
+			"total_comments": len(review.Comments),
+		}).Debug("Posting review comment")
+
 		if err := h.gitlabService.PostMRComment(projectID, mrIID, comment); err != nil {
-			fmt.Printf("Error posting comment: %v\n", err)
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid": mrIID,
+				"comment_index": i + 1,
+			}).Error("Failed to post review comment")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid": mrIID,
+				"comment_index": i + 1,
+			}).Debug("Review comment posted successfully")
 		}
 	}
 
 	if review.Summary != "" {
+		logrus.WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid": mrIID,
+		}).Info("Posting review summary")
+
 		summaryComment := fmt.Sprintf("## 🤖 AI Code Review Summary\n\n%s", review.Summary)
 		if err := h.gitlabService.PostMRComment(projectID, mrIID, summaryComment); err != nil {
-			fmt.Printf("Error posting summary comment: %v\n", err)
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid": mrIID,
+			}).Error("Failed to post summary comment")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid": mrIID,
+			}).Info("Summary comment posted successfully")
 		}
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"mr_iid": mrIID,
+	}).Info("Merge request processing completed")
 }
 
 func HealthCheck(c *gin.Context) {
+	logrus.Debug("Health check requested")
 	c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 }

@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 type GitLabWebhook struct {
 	ObjectKind       string           `json:"object_kind"`
 	EventType        string           `json:"event_type"`
@@ -37,26 +35,26 @@ type Project struct {
 }
 
 type ObjectAttributes struct {
-	ID              int       `json:"id"`
-	IID             int       `json:"iid"`
-	Title           string    `json:"title"`
-	Description     string    `json:"description"`
-	State           string    `json:"state"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	TargetBranch    string    `json:"target_branch"`
-	SourceBranch    string    `json:"source_branch"`
-	SourceProjectID int       `json:"source_project_id"`
-	TargetProjectID int       `json:"target_project_id"`
-	AuthorID        int       `json:"author_id"`
-	AssigneeID      int       `json:"assignee_id"`
-	URL             string    `json:"url"`
-	Source          Source    `json:"source"`
-	Target          Target    `json:"target"`
-	LastCommit      Commit    `json:"last_commit"`
-	WorkInProgress  bool      `json:"work_in_progress"`
-	Assignee        User      `json:"assignee"`
-	Action          string    `json:"action"`
+	ID              int    `json:"id"`
+	IID             int    `json:"iid"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	State           string `json:"state"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+	TargetBranch    string `json:"target_branch"`
+	SourceBranch    string `json:"source_branch"`
+	SourceProjectID int    `json:"source_project_id"`
+	TargetProjectID int    `json:"target_project_id"`
+	AuthorID        int    `json:"author_id"`
+	AssigneeID      int    `json:"assignee_id"`
+	URL             string `json:"url"`
+	Source          Source `json:"source"`
+	Target          Target `json:"target"`
+	LastCommit      Commit `json:"last_commit"`
+	WorkInProgress  bool   `json:"work_in_progress"`
+	Assignee        User   `json:"assignee"`
+	Action          string `json:"action"`
 }
 
 type Source struct {
@@ -92,11 +90,11 @@ type Target struct {
 }
 
 type Commit struct {
-	ID        string    `json:"id"`
-	Message   string    `json:"message"`
-	Timestamp time.Time `json:"timestamp"`
-	URL       string    `json:"url"`
-	Author    Author    `json:"author"`
+	ID        string `json:"id"`
+	Message   string `json:"message"`
+	Timestamp string `json:"timestamp"`
+	URL       string `json:"url"`
+	Author    Author `json:"author"`
 }
 
 type Author struct {
