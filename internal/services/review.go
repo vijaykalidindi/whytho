@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -33,7 +34,7 @@ func NewReviewService(apiKey string) *ReviewService {
 	}
 }
 
-func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description string, gitlabService *GitLabService, projectID int, targetBranch string) (*models.CodeReview, error) {
+func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description string, gitlabService *GitLabService, projectID, mrIID int, targetBranch string) (*models.CodeReview, error) {
 	logrus.WithFields(logrus.Fields{
 		"changes_count": len(changes),
 		"mr_title":      title,
@@ -41,15 +42,62 @@ func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description
 
 	ctx := context.Background()
 
+	// Fetch WhyTho config to filter excluded paths
+	whyThoConfig, err := gitlabService.GetWhyThoConfig(projectID, mrIID, targetBranch, changes)
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid":     mrIID,
+		}).Warn("Failed to fetch WhyTho config, proceeding without path filtering")
+		whyThoConfig = &models.WhyThoConfig{ExcludePaths: []string{}}
+	}
+
+	// Filter out excluded paths
+	filteredChanges, excludedFiles := r.filterExcludedChanges(changes, whyThoConfig)
+	
+	if len(excludedFiles) > 0 {
+		logrus.WithFields(logrus.Fields{
+			"project_id":      projectID,
+			"mr_iid":          mrIID,
+			"excluded_count":  len(excludedFiles),
+			"excluded_files":  excludedFiles,
+			"total_changes":   len(changes),
+			"filtered_changes": len(filteredChanges),
+		}).Info("Excluded files from review based on WhyTho config")
+	}
+
+	if len(filteredChanges) == 0 {
+		logrus.WithFields(logrus.Fields{
+			"project_id":     projectID,
+			"mr_iid":         mrIID,
+			"excluded_count": len(excludedFiles),
+		}).Info("All files excluded from review, returning empty review")
+		
+		summary := "All files in this merge request are excluded from review based on the .whytho/config.yaml configuration."
+		if len(excludedFiles) > 0 {
+			summary += fmt.Sprintf(" Excluded files: %s", strings.Join(excludedFiles, ", "))
+		}
+		
+		return &models.CodeReview{
+			Summary:            summary,
+			Comments:           []string{},
+			PositionedComments: []models.PositionedComment{},
+		}, nil
+	}
+
 	var codeContent strings.Builder
 	codeContent.WriteString("## Merge Request Details\n")
 	codeContent.WriteString(fmt.Sprintf("**Title:** %s\n", title))
 	codeContent.WriteString(fmt.Sprintf("**Description:** %s\n\n", description))
 
+	if len(excludedFiles) > 0 {
+		codeContent.WriteString(fmt.Sprintf("## Excluded Files\nThe following files were excluded from review based on .whytho/config.yaml: %s\n\n", strings.Join(excludedFiles, ", ")))
+	}
+
 	logrus.Debug("Building code content for AI review")
 
 	processedFiles := 0
-	for _, change := range changes {
+	for _, change := range filteredChanges {
 		if change.DeletedFile {
 			logrus.WithField("file", change.OldPath).Debug("Skipping deleted file")
 			continue
@@ -308,6 +356,60 @@ func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
 		Comments:           comments,
 		PositionedComments: positionedComments,
 	}
+}
+
+func (r *ReviewService) shouldExcludePath(filePath string, excludePaths []string) bool {
+	for _, pattern := range excludePaths {
+		// Use filepath.Match for basic glob pattern matching
+		matched, err := filepath.Match(pattern, filePath)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"file_path": filePath,
+				"pattern":   pattern,
+			}).Warn("Invalid exclude pattern, skipping")
+			continue
+		}
+		if matched {
+			return true
+		}
+		
+		// Also check if the pattern with ** matches (simple directory prefix matching)
+		if strings.HasSuffix(pattern, "/**") {
+			prefix := strings.TrimSuffix(pattern, "/**")
+			if strings.HasPrefix(filePath, prefix+"/") || filePath == prefix {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *ReviewService) filterExcludedChanges(changes []models.MRChange, config *models.WhyThoConfig) ([]models.MRChange, []string) {
+	if config == nil || len(config.ExcludePaths) == 0 {
+		return changes, []string{}
+	}
+
+	var filteredChanges []models.MRChange
+	var excludedFiles []string
+
+	for _, change := range changes {
+		filePath := change.NewPath
+		if filePath == "" {
+			filePath = change.OldPath // For deleted files
+		}
+
+		if r.shouldExcludePath(filePath, config.ExcludePaths) {
+			excludedFiles = append(excludedFiles, filePath)
+			logrus.WithFields(logrus.Fields{
+				"file_path":     filePath,
+				"exclude_paths": config.ExcludePaths,
+			}).Debug("Excluding file from review based on WhyTho config")
+		} else {
+			filteredChanges = append(filteredChanges, change)
+		}
+	}
+
+	return filteredChanges, excludedFiles
 }
 
 func (r *ReviewService) addLineNumbersToDiff(diff string) string {

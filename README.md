@@ -165,6 +165,60 @@ If no `guidance.md` file is found, the bot uses comprehensive default review cri
 - Potential bugs
 - Documentation needs
 
+## Path Exclusion Configuration
+
+The bot supports excluding specific files and directories from review using a `.whytho/config.yaml` file in your repository.
+
+### Creating .whytho/config.yaml
+
+Create a `.whytho/config.yaml` file in your repository root to specify which paths should be excluded from review:
+
+```yaml
+excludePaths:
+  - "vendor/**"
+  - "*.generated.go"
+  - "docs/**"
+  - "test/fixtures/**"
+```
+
+### Supported Path Patterns
+
+- **Exact matches**: `vendor/module.go`
+- **Glob patterns**: `*.go`, `test_*.py`
+- **Directory exclusions**: `vendor/**` (excludes all files in vendor directory and subdirectories)
+- **File extensions**: `*.min.js`, `*.generated.*`
+
+### Configuration Priority
+
+The bot checks for `.whytho/config.yaml` in the following order:
+
+1. **Modified in MR**: If the config file is changed in the current merge request, uses the new version
+2. **Target branch**: If not modified, fetches the config from the target branch (e.g., `main`)
+3. **Fallback**: If no config file exists, reviews all files
+
+### Example Configuration
+
+```yaml
+excludePaths:
+  - "vendor/**" # Exclude all vendor dependencies
+  - "*.pb.go" # Exclude generated protobuf files
+  - "*.generated.go" # Exclude all generated Go files
+  - "docs/**" # Exclude documentation directory
+  - "test/fixtures/**" # Exclude test fixtures
+  - "*.min.js" # Exclude minified JavaScript
+  - "migrations/**" # Exclude database migrations
+```
+
+### Logging
+
+When files are excluded, the bot logs:
+
+- Number of excluded files
+- List of excluded file paths
+- Remaining files for review
+
+If all files are excluded, the bot posts a summary comment explaining the exclusion.
+
 ## Required Tokens and Permissions
 
 ### GitLab Access Token

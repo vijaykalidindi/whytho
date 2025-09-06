@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vinamra28/operator-reviewer/internal/models"
 	"github.com/xanzy/go-gitlab"
+	"gopkg.in/yaml.v3"
 )
 
 type GitLabService struct {
@@ -406,6 +407,121 @@ func (g *GitLabService) GetReviewGuidance(projectID int, branch string) (string,
 	}).Info("Successfully fetched review guidance from repository")
 
 	return content, nil
+}
+
+func (g *GitLabService) GetWhyThoConfig(projectID, mrIID int, targetBranch string, changes []models.MRChange) (*models.WhyThoConfig, error) {
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"mr_iid":     mrIID,
+		"branch":     targetBranch,
+	}).Debug("Fetching WhyTho config")
+
+	configPath := ".whytho/config.yaml"
+	
+	// First, check if .whytho/config.yaml is modified in the MR diff
+	for _, change := range changes {
+		if change.NewPath == configPath && !change.DeletedFile {
+			logrus.WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid":     mrIID,
+			}).Info("WhyTho config found in MR diff, using modified version")
+			
+			// Parse the new version from the diff
+			config, err := g.parseWhyThoConfigFromDiff(change.Diff)
+			if err != nil {
+				logrus.WithError(err).WithFields(logrus.Fields{
+					"project_id": projectID,
+					"mr_iid":     mrIID,
+				}).Warn("Failed to parse WhyTho config from diff, falling back to target branch")
+				break // Fall through to target branch lookup
+			}
+			return config, nil
+		}
+	}
+
+	// If not in diff, fetch from target branch
+	return g.getWhyThoConfigFromBranch(projectID, targetBranch)
+}
+
+func (g *GitLabService) parseWhyThoConfigFromDiff(diff string) (*models.WhyThoConfig, error) {
+	lines := strings.Split(diff, "\n")
+	var yamlContent strings.Builder
+	
+	for _, line := range lines {
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			// Remove the '+' prefix and add to YAML content
+			yamlContent.WriteString(strings.TrimPrefix(line, "+") + "\n")
+		}
+	}
+	
+	var config models.WhyThoConfig
+	if err := yaml.Unmarshal([]byte(yamlContent.String()), &config); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML from diff: %w", err)
+	}
+	
+	return &config, nil
+}
+
+func (g *GitLabService) getWhyThoConfigFromBranch(projectID int, branch string) (*models.WhyThoConfig, error) {
+	logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+		"branch":     branch,
+	}).Debug("Fetching WhyTho config from target branch")
+
+	configPath := ".whytho/config.yaml"
+	
+	// Try to fetch .whytho/config.yaml from the repository
+	file, _, err := g.client.RepositoryFiles.GetFile(projectID, configPath, &gitlab.GetFileOptions{
+		Ref: &branch,
+	})
+	if err != nil {
+		// Check if it's a 404 error (file not found)
+		if strings.Contains(err.Error(), "404") {
+			logrus.WithFields(logrus.Fields{
+				"project_id": projectID,
+				"branch":     branch,
+			}).Debug("No .whytho/config.yaml file found in repository")
+			return &models.WhyThoConfig{ExcludePaths: []string{}}, nil // Return empty config
+		}
+
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"project_id": projectID,
+			"branch":     branch,
+		}).Error("Failed to fetch .whytho/config.yaml from repository")
+		return nil, fmt.Errorf("failed to fetch .whytho/config.yaml: %w", err)
+	}
+
+	// Decode the file content (GitLab returns base64 encoded content)
+	content := file.Content
+	if file.Encoding == "base64" {
+		decoded, err := base64.StdEncoding.DecodeString(content)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"project_id": projectID,
+				"branch":     branch,
+			}).Error("Failed to decode .whytho/config.yaml content")
+			return nil, fmt.Errorf("failed to decode .whytho/config.yaml: %w", err)
+		}
+		content = string(decoded)
+	}
+
+	// Parse YAML content
+	var config models.WhyThoConfig
+	if err := yaml.Unmarshal([]byte(content), &config); err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"project_id": projectID,
+			"branch":     branch,
+		}).Error("Failed to parse .whytho/config.yaml content")
+		return nil, fmt.Errorf("failed to parse .whytho/config.yaml: %w", err)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"project_id":    projectID,
+		"branch":        branch,
+		"exclude_paths": len(config.ExcludePaths),
+	}).Info("Successfully fetched WhyTho config from repository")
+
+	return &config, nil
 }
 
 func formatSeverity(severity string) string {

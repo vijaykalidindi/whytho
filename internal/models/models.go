@@ -143,3 +143,7 @@ type DiffLine struct {
 	NewLineNum int    `json:"new_line_num"` // Line number in new file (0 if deleted line)
 	Position   int    `json:"position"`     // Position in diff for GitLab API
 }
+
+type WhyThoConfig struct {
+	ExcludePaths []string `yaml:"excludePaths"`
+}
