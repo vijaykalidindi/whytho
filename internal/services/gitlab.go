@@ -363,27 +363,31 @@ func (g *GitLabService) GetReviewGuidance(projectID int, branch string) (string,
 	logrus.WithFields(logrus.Fields{
 		"project_id": projectID,
 		"branch":     branch,
-	}).Debug("Fetching review guidance from repository")
+	}).Debug("Fetching review guidance from .whytho directory")
 
-	// Try to fetch guidance.md from the repository
-	file, _, err := g.client.RepositoryFiles.GetFile(projectID, "guidance.md", &gitlab.GetFileOptions{
+	guidancePath := ".whytho/guidance.md"
+
+	// Try to fetch .whytho/guidance.md from the repository
+	file, _, err := g.client.RepositoryFiles.GetFile(projectID, guidancePath, &gitlab.GetFileOptions{
 		Ref: &branch,
 	})
 	if err != nil {
 		// Check if it's a 404 error (file not found)
 		if strings.Contains(err.Error(), "404") {
 			logrus.WithFields(logrus.Fields{
-				"project_id": projectID,
-				"branch":     branch,
-			}).Debug("No guidance.md file found in repository")
+				"project_id":    projectID,
+				"branch":        branch,
+				"guidance_path": guidancePath,
+			}).Debug("No .whytho/guidance.md file found in repository")
 			return "", nil // Return empty string, not an error
 		}
 
 		logrus.WithError(err).WithFields(logrus.Fields{
-			"project_id": projectID,
-			"branch":     branch,
-		}).Error("Failed to fetch guidance.md from repository")
-		return "", fmt.Errorf("failed to fetch guidance.md: %w", err)
+			"project_id":    projectID,
+			"branch":        branch,
+			"guidance_path": guidancePath,
+		}).Error("Failed to fetch .whytho/guidance.md from repository")
+		return "", fmt.Errorf("failed to fetch .whytho/guidance.md: %w", err)
 	}
 
 	// Decode the file content (GitLab returns base64 encoded content)
@@ -392,10 +396,11 @@ func (g *GitLabService) GetReviewGuidance(projectID int, branch string) (string,
 		decoded, err := base64.StdEncoding.DecodeString(content)
 		if err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
-				"project_id": projectID,
-				"branch":     branch,
-			}).Error("Failed to decode guidance.md content")
-			return "", fmt.Errorf("failed to decode guidance.md: %w", err)
+				"project_id":    projectID,
+				"branch":        branch,
+				"guidance_path": guidancePath,
+			}).Error("Failed to decode .whytho/guidance.md content")
+			return "", fmt.Errorf("failed to decode .whytho/guidance.md: %w", err)
 		}
 		content = string(decoded)
 	}
@@ -403,8 +408,9 @@ func (g *GitLabService) GetReviewGuidance(projectID int, branch string) (string,
 	logrus.WithFields(logrus.Fields{
 		"project_id":      projectID,
 		"branch":          branch,
+		"guidance_path":   guidancePath,
 		"guidance_length": len(content),
-	}).Info("Successfully fetched review guidance from repository")
+	}).Info("Successfully fetched review guidance from .whytho directory")
 
 	return content, nil
 }

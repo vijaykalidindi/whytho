@@ -8,7 +8,7 @@ An AI-powered GitLab merge request reviewer bot that uses Google's Gemini LLM to
 - 🔗 **GitLab Integration**: Seamless integration with GitLab webhooks
 - 🚀 **Automatic Comments**: Posts review comments directly on merge requests
 - 📍 **Positioned Comments**: AI can comment on specific lines in diffs for precise feedback
-- 📋 **Custom Review Guidance**: Supports repository-specific review criteria via guidance.md files
+- 📋 **Custom Review Guidance**: Supports repository-specific review criteria via .whytho/guidance.md files
 - 🔒 **Secure**: Supports webhook signature verification
 - 📊 **Comprehensive Analysis**: Reviews code quality, security, performance, and best practices
 - 📝 **Structured Logging**: Uses logrus for comprehensive structured logging
@@ -90,7 +90,7 @@ docker run -p 8080:8080 --env-file .env gitlab-mr-reviewer
 1. GitLab sends a webhook when a merge request is opened, reopened, or updated
 2. The bot validates the webhook signature (if configured)
 3. Fetches the merge request changes via GitLab API
-4. Attempts to fetch custom review guidance from `guidance.md` in the target repository
+4. Attempts to fetch custom review guidance from `.whytho/guidance.md` in the target repository
 5. Sends the code changes to Google Gemini for analysis with custom or default guidance
 6. Posts AI-generated review comments back to the merge request (both general and line-specific positioned comments)
 
@@ -124,11 +124,11 @@ docker run -p 8080:8080 --env-file .env gitlab-mr-reviewer
 
 ## Custom Review Guidance
 
-The bot supports repository-specific review criteria by reading a `guidance.md` file from the target repository's root directory. This allows each project to customize the AI reviewer's focus areas and criteria.
+The bot supports repository-specific review criteria by reading a `.whytho/guidance.md` file from the target repository. This allows each project to customize the AI reviewer's focus areas and criteria.
 
-### Creating guidance.md
+### Creating .whytho/guidance.md
 
-Create a `guidance.md` file in your repository root with your custom review guidelines:
+Create a `.whytho/guidance.md` file in your repository with your custom review guidelines:
 
 ```markdown
 # Code Review Guidance
@@ -156,7 +156,7 @@ Create a `guidance.md` file in your repository root with your custom review guid
 
 ### Fallback Behavior
 
-If no `guidance.md` file is found, the bot uses comprehensive default review criteria covering:
+If no `.whytho/guidance.md` file is found, the bot uses comprehensive default review criteria covering:
 
 - Code quality and maintainability
 - Security vulnerabilities
