@@ -1,4 +1,4 @@
-# GitLab MR Reviewer Bot
+# WhyTho: Making your code less questionable, one PR at a time
 
 An AI-powered GitLab merge request reviewer bot that uses Google's Gemini LLM to provide intelligent code reviews. The bot automatically analyzes merge requests and posts constructive feedback as comments.
 
