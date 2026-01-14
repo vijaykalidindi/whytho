@@ -533,13 +533,13 @@ func (g *GitLabService) getWhyThoConfigFromBranch(projectID int, branch string) 
 func formatSeverity(severity string) string {
 	switch severity {
 	case "CRITICAL":
-		return "![Critical](https://camo.githubusercontent.com/97cdeeadb5113837c0d106b7e5adaab2e2b698c5115c07d716586ff9f7c771eb/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f637269746963616c2e737667)"
+		return "![Critical](https://raw.githubusercontent.com/vinamra28/whytho/refs/heads/main/assets/critical.svg)"
 	case "HIGH":
-		return "![High](https://camo.githubusercontent.com/6be8dfd86afd9805fdf193065c11418ba1225c487bda10d961f6a486f586fa07/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f686967682d7072696f726974792e737667)"
+		return "![High](https://raw.githubusercontent.com/vinamra28/whytho/refs/heads/main/assets/high_priority.svg)"
 	case "MEDIUM":
-		return "![Medium](https://camo.githubusercontent.com/a33c7ba47779a2aabda978d90fc2665dd949d88da87f5ff554e65308de059f02/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f6d656469756d2d7072696f726974792e737667)"
+		return "![Medium](https://raw.githubusercontent.com/vinamra28/whytho/refs/heads/main/assets/medium_priority.svg)"
 	case "LOW":
-		return "![Low](https://camo.githubusercontent.com/8fb8f2550573602557367af68a00a632c2f9e5ffbf5ade2572b4e0bfb7d3d33a/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f6c6f772d7072696f726974792e737667)"
+		return "![Low](https://raw.githubusercontent.com/vinamra28/whytho/refs/heads/main/assets/low_priority.svg)"
 	default:
 		return fmt.Sprintf("**%s**", severity)
 	}
