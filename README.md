@@ -8,6 +8,7 @@ An AI-powered GitLab merge request reviewer bot that uses Google's Gemini LLM to
 - 🔗 **GitLab Integration**: Seamless integration with GitLab webhooks
 - 🚀 **Automatic Comments**: Posts review comments directly on merge requests
 - 📍 **Positioned Comments**: AI can comment on specific lines in diffs for precise feedback
+- ✨ **GitLab Suggestions**: Provides one-click code fix suggestions that developers can apply instantly
 - 📋 **Custom Review Guidance**: Supports repository-specific review criteria via .whytho/guidance.md files
 - 🔒 **Secure**: Supports webhook signature verification
 - 📊 **Comprehensive Analysis**: Reviews code quality, security, performance, and best practices

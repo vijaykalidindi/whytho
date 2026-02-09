@@ -169,11 +169,27 @@ Please format your response as follows:
   - line_type is either "new" (for lines starting with +), "old" (for lines starting with -), or "context" (for lines starting with space)
   - severity is one of: LOW, MEDIUM, HIGH, or CRITICAL
   - comment_text is your detailed feedback with specific suggestions
+
+  CODE SUGGESTIONS (GitLab Feature):
+  When you have a concrete code fix, you can provide a GitLab code suggestion that developers can apply with one click.
+  Add a SUGGESTION line immediately after your COMMENT line in this format:
+  SUGGESTION:offset:suggested_code_here
+
+  Where:
+  - offset is "-0+0" for single-line suggestions (most common), or "-N+M" for multi-line suggestions
+    (N = lines above, M = lines below, e.g., "-2+2" suggests changes to 5 lines total)
+  - suggested_code_here is the exact code that should replace the current line(s)
+  - Only include the code itself, without line markers (+/-) or line numbers
+  - Suggestions work best for simple, clear fixes (variable names, adding validation, fixing bugs)
+
+  Example with suggestion:
+  COMMENT:src/main.go:3:new:MEDIUM:Variable name 'myVar' is unclear. Using a descriptive constant name improves readability and prevents accidental modification.
+  SUGGESTION:-0+0:const maxRetryCount = 5
   
   Comment Structure Guidelines:
   - Start with a clear problem statement
   - Provide specific improvement suggestion
-  - Include code examples when helpful (use markdown code blocks)
+  - When providing a code suggestion, explain WHY in the comment, and provide the exact code in SUGGESTION
   - Explain the benefits of the suggested change
   - Reference relevant best practices or patterns
   
@@ -183,8 +199,6 @@ Please format your response as follows:
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs
   - LOW: Style improvements, documentation suggestions, minor optimizations
   
-  Example: COMMENT:src/main.go:3:new:MEDIUM:Consider using a more specific variable name and declaring it as const for better readability and immutability. Suggestion: "const maxRetryCount = 5" instead of "myVar = 5". This makes the purpose clear and prevents accidental modification.
-
 CRITICAL: 
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
@@ -228,11 +242,27 @@ Please format your response as follows:
   - line_type is either "new" (for lines starting with +), "old" (for lines starting with -), or "context" (for lines starting with space)
   - severity is one of: LOW, MEDIUM, HIGH, or CRITICAL
   - comment_text is your detailed feedback with specific suggestions
+
+  CODE SUGGESTIONS (GitLab Feature):
+  When you have a concrete code fix, you can provide a GitLab code suggestion that developers can apply with one click.
+  Add a SUGGESTION line immediately after your COMMENT line in this format:
+  SUGGESTION:offset:suggested_code_here
+
+  Where:
+  - offset is "-0+0" for single-line suggestions (most common), or "-N+M" for multi-line suggestions
+    (N = lines above, M = lines below, e.g., "-2+2" suggests changes to 5 lines total)
+  - suggested_code_here is the exact code that should replace the current line(s)
+  - Only include the code itself, without line markers (+/-) or line numbers
+  - Suggestions work best for simple, clear fixes (variable names, adding validation, fixing bugs)
+
+  Example with suggestion:
+  COMMENT:src/main.go:3:new:MEDIUM:Variable name 'myVar' is unclear. Using a descriptive constant name improves readability and prevents accidental modification.
+  SUGGESTION:-0+0:const maxRetryCount = 5
   
   Comment Structure Guidelines:
   - Start with a clear problem statement
   - Provide specific improvement suggestion with reasoning
-  - Include code examples when helpful (use markdown code blocks)
+  - When providing a code suggestion, explain WHY in the comment, and provide the exact code in SUGGESTION
   - Explain the benefits of the suggested change
   - Reference relevant best practices, design patterns, or standards
   
@@ -242,8 +272,6 @@ Please format your response as follows:
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs, suboptimal patterns
   - LOW: Style improvements, documentation suggestions, minor optimizations, naming conventions
   
-  Example: COMMENT:src/main.go:3:new:MEDIUM:Consider using a more descriptive variable name and declaring it as const for better readability and immutability. Suggestion: Replace "myVar = 5" with "const maxRetryCount = 5". This improves code clarity and prevents accidental modification, following Go naming conventions.
-
 CRITICAL: 
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
@@ -290,8 +318,8 @@ func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
 
 	inSummary := true
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
 
 		if strings.HasPrefix(line, "COMMENT:") {
 			inSummary = false
@@ -318,6 +346,35 @@ func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
 							Comment:      commentText,
 							OriginalLine: "", // We could enhance this later
 						}
+
+						// Check if the next line contains a SUGGESTION
+						if i+1 < len(lines) {
+							nextLine := strings.TrimSpace(lines[i+1])
+							if strings.HasPrefix(nextLine, "SUGGESTION:") {
+								suggestion := strings.TrimPrefix(nextLine, "SUGGESTION:")
+								suggestion = strings.TrimSpace(suggestion)
+
+								// Parse SUGGESTION format: offset:code
+								suggestionParts := strings.SplitN(suggestion, ":", 2)
+								if len(suggestionParts) == 2 {
+									offset := suggestionParts[0]
+									suggestedCode := suggestionParts[1]
+
+									positionedComment.HasSuggestion = true
+									positionedComment.SuggestedCode = suggestedCode
+									positionedComment.SuggestionOffset = offset
+
+									logrus.WithFields(logrus.Fields{
+										"file_path":   filePath,
+										"line_number": lineNum,
+										"offset":      offset,
+									}).Debug("Parsed code suggestion")
+
+									i++ // Skip the SUGGESTION line in next iteration
+								}
+							}
+						}
+
 						positionedComments = append(positionedComments, positionedComment)
 
 						logrus.WithFields(logrus.Fields{

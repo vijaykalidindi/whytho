@@ -164,11 +164,20 @@ func (h *WebhookHandler) processMergeRequest(webhook *models.GitLabWebhook) {
 		return
 	}
 
+	// Count comments with suggestions
+	suggestionsCount := 0
+	for _, comment := range review.PositionedComments {
+		if comment.HasSuggestion {
+			suggestionsCount++
+		}
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"project_id":                projectID,
 		"mr_iid":                    mrIID,
 		"general_comments_count":    len(review.Comments),
 		"positioned_comments_count": len(review.PositionedComments),
+		"suggestions_count":         suggestionsCount,
 	}).Info("Code review completed")
 
 	// Post positioned comments first
@@ -180,6 +189,7 @@ func (h *WebhookHandler) processMergeRequest(webhook *models.GitLabWebhook) {
 			"total_positioned_comments": len(review.PositionedComments),
 			"file_path":                 posComment.FilePath,
 			"line_number":               posComment.LineNumber,
+			"has_suggestion":            posComment.HasSuggestion,
 		}).Debug("Posting positioned review comment")
 
 		if err := h.gitlabService.PostPositionedMRComment(projectID, mrIID, posComment); err != nil {

@@ -135,6 +135,10 @@ type PositionedComment struct {
 	Comment      string `json:"comment"`
 	OriginalLine string `json:"original_line"`
 	LineCode     string `json:"line_code"` // GitLab's line code for positioning
+	// GitLab code suggestions
+	HasSuggestion    bool   `json:"has_suggestion"`
+	SuggestedCode    string `json:"suggested_code"`
+	SuggestionOffset string `json:"suggestion_offset"` // e.g., "-0+0" for single line, "-2+2" for multi-line
 }
 
 type DiffLine struct {

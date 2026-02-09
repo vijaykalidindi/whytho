@@ -134,8 +134,15 @@ func (g *GitLabService) PostPositionedMRComment(projectID, mrIID int, positioned
 		}).Warn("Failed to convert diff line to actual line, falling back to general comment")
 
 		severityFormatted := formatSeverity(positionedComment.Severity)
-		return g.PostMRComment(projectID, mrIID, fmt.Sprintf("**File: %s (Line %d)** - %s\n\n%s",
-			positionedComment.FilePath, positionedComment.LineNumber, severityFormatted, positionedComment.Comment))
+		fallbackComment := fmt.Sprintf("**File: %s (Line %d)** - %s\n\n%s",
+			positionedComment.FilePath, positionedComment.LineNumber, severityFormatted, positionedComment.Comment)
+
+		// Include suggested code as a regular code block in fallback
+		if positionedComment.HasSuggestion {
+			fallbackComment += fmt.Sprintf("\n\n**Suggested fix:**\n```\n%s\n```", positionedComment.SuggestedCode)
+		}
+
+		return g.PostMRComment(projectID, mrIID, fallbackComment)
 	}
 
 	// Create updated positioned comment with actual line number
@@ -161,8 +168,15 @@ func (g *GitLabService) PostPositionedMRComment(projectID, mrIID int, positioned
 		}).Info("Falling back to general comment")
 
 		severityFormatted := formatSeverity(positionedComment.Severity)
-		return g.PostMRComment(projectID, mrIID, fmt.Sprintf("**File: %s (Line %d)** - %s\n\n%s",
-			positionedComment.FilePath, positionedComment.LineNumber, severityFormatted, positionedComment.Comment))
+		fallbackComment := fmt.Sprintf("**File: %s (Line %d)** - %s\n\n%s",
+			positionedComment.FilePath, positionedComment.LineNumber, severityFormatted, positionedComment.Comment)
+
+		// Include suggested code as a regular code block in fallback
+		if positionedComment.HasSuggestion {
+			fallbackComment += fmt.Sprintf("\n\n**Suggested fix:**\n```\n%s\n```", positionedComment.SuggestedCode)
+		}
+
+		return g.PostMRComment(projectID, mrIID, fallbackComment)
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -188,6 +202,20 @@ func (g *GitLabService) postPositionedCommentHTTP(projectID, mrIID int, position
 	// Add body with severity and color formatting
 	severityFormatted := formatSeverity(positionedComment.Severity)
 	commentBody := fmt.Sprintf("%s\n\n%s", severityFormatted, positionedComment.Comment)
+
+	// Add GitLab code suggestion if present
+	if positionedComment.HasSuggestion {
+		commentBody += fmt.Sprintf("\n\n```suggestion:%s\n%s\n```",
+			positionedComment.SuggestionOffset,
+			positionedComment.SuggestedCode)
+
+		logrus.WithFields(logrus.Fields{
+			"file_path":   positionedComment.FilePath,
+			"line_number": positionedComment.LineNumber,
+			"offset":      positionedComment.SuggestionOffset,
+		}).Debug("Adding GitLab code suggestion to comment")
+	}
+
 	_ = writer.WriteField("body", commentBody)
 
 	// Add position fields

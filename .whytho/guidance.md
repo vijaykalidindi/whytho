@@ -60,3 +60,4 @@ When providing feedback, please:
 - Reference relevant documentation or best practices
 - Prioritize security and reliability issues
 - Be constructive and educational in tone
+- Provide concrete code suggestions when you have a clear fix (these will appear as GitLab suggestions that can be applied with one click)
