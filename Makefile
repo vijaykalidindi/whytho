@@ -14,19 +14,6 @@ all: test build
 build:
 	$(GOBUILD) -o $(BINARY_NAME) -v cmd/main.go
 
-
-.PHONY: mockgen
-mockgen: ## Generate mocks.
-	@if ! type -p mockgen &> /dev/null; then \
-		echo "mockgen not found, installing"; \
-		go install github.com/golang/mock/mockgen@latest; \
-	fi
-	@echo "Generating mocks"
-	@mockgen -source=pkg/clients/ldap/client.go -destination=pkg/clients/ldap/mocks/ldap_mock.go -package=mocks LDAPConnClient
-	@mockgen -source=pkg/clients/ldap/client.go -destination=internal/controller/mocks/ldap_mock.go -package=mocks LDAPClient
-	@mockgen -source=pkg/clients/client.go -destination=internal/controller/periodicjobs/mocks/client_mock.go -package=mocks Client
-
-
 test:
 	$(GOTEST) -v ./...
 
