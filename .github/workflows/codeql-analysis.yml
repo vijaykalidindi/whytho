@@ -65,7 +65,7 @@ jobs:
       with:
         go-version-file: "go.mod"
     - run: |
-        make mockgen build
+        make build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
