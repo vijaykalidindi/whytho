@@ -43,9 +43,6 @@ jobs:
               failed=1
           fi
           echo "$gofmt_out"
-      - name: mockgen
-        run: |
-          make mockgen
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6.0.1
         with:
