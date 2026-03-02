@@ -5,9 +5,10 @@
 # or to provide custom queries or build logic.
 #
 # ******** NOTE ********
-# We have attempted to detect the languages in your repository. Please check
-# the `language` matrix defined below to confirm you have the correct set of
-# supported CodeQL languages.
+# If you use this custom workflow, disable "Default setup" in the repo:
+# Settings → Code security and analysis → Code scanning → CodeQL analysis →
+# turn OFF "Default setup". Otherwise GitHub rejects the SARIF with:
+# "CodeQL analyses from advanced configurations cannot be processed when the default setup is enabled"
 #
 name: "CodeQL"
 
@@ -40,32 +41,27 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
 
-    # Initializes the CodeQL tools for scanning.
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
+    # Go must be installed *before* CodeQL init so CodeQL uses it for build tracing.
+    - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
       with:
-        languages: ${{ matrix.language }}
-        # If you wish to specify custom queries, you can do so here or in a config file.
-        # By default, queries listed here will override any specified in a config file.
-        # Prefix the list here with "+" to use these queries and those in the config file.
-        # queries: ./path/to/local/query, your-org/your-repo/queries@main
+        go-version-file: "go.mod"
 
-    # setup cache to speed up the action
     - uses: actions/cache@v5
       with:
         path: |
           ~/.cache/go-build
-          ~/.cache/pip
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
-          ${{ runner.os }}-go-    
+          ${{ runner.os }}-go-
 
-    - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
       with:
-        go-version-file: "go.mod"
-    - run: |
-        make build
+        languages: ${{ matrix.language }}
+
+    - name: Build (for CodeQL tracing)
+      run: make build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
